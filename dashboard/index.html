@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Predictive Maintenance Agent</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --crit: #f85149;
+    --blue: #58a6ff;
+    --purple: #a371f7;
+    --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ok);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  .status-badge {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: 1px solid;
+    transition: all 0.3s;
+  }
+
+  .status-OK { color: var(--ok); border-color: var(--ok); background: rgba(63,185,80,0.1); }
+  .status-WARNING { color: var(--warn); border-color: var(--warn); background: rgba(210,153,34,0.1); }
+  .status-CRITICAL { color: var(--crit); border-color: var(--crit); background: rgba(248,81,73,0.1); animation: blink 1s ease-in-out infinite; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  main { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .metric-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+
+  .metric-unit {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .metric-bar {
+    margin-top: 12px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease, background 0.3s;
+  }
+
+  .card-title {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  canvas { max-height: 200px; }
+
+  .alerts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    border-left: 3px solid;
+    font-size: 12px;
+    background: rgba(255,255,255,0.02);
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .alert-WARNING { border-color: var(--warn); }
+  .alert-CRITICAL { border-color: var(--crit); background: rgba(248,81,73,0.05); }
+
+  .alert-sev {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-top: 1px;
+  }
+
+  .sev-WARNING { background: rgba(210,153,34,0.2); color: var(--warn); }
+  .sev-CRITICAL { background: rgba(248,81,73,0.2); color: var(--crit); }
+
+  .alert-msg { flex: 1; color: var(--text); }
+  .alert-time { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
+  .sim-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  button {
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+
+  button:hover { background: rgba(255,255,255,0.05); border-color: var(--blue); color: var(--blue); }
+  button.active { background: rgba(88,166,255,0.1); border-color: var(--blue); color: var(--blue); }
+  button.danger:hover { border-color: var(--crit); color: var(--crit); background: rgba(248,81,73,0.08); }
+
+  .conn-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  .conn-dot.error { background: var(--crit); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    padding: 32px;
+    font-size: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot" id="live-dot"></div>
+    Predictive Maintenance Agent
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <span style="color:var(--muted);font-size:11px"><span class="conn-dot" id="conn-dot"></span><span id="conn-label">connecting...</span></span>
+    <div class="status-badge status-OK" id="status-badge">OK</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Metric cards -->
+  <div class="grid-4">
+    <div class="card metric-card">
+      <div class="metric-label">CPU Usage</div>
+      <div><span class="metric-value" id="val-cpu">—</span><span class="metric-unit">%</span></div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="bar-cpu" style="width:0%"></div></div>
+    </div>
+    <div class="card metric-card">
+      <div class="metric-label">RAM Usage</div>
+      <div><span class="metric-value" id="val-ram">—</span><span class="metric-unit">%</span></div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="bar-ram" style="width:0%"></div></div>
+    </div>
+    <div class="card metric-card">
+      <div class="metric-label">Latency</div>
+      <div><span class="metric-value" id="val-lat">—</span><span class="metric-unit">ms</span></div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="bar-lat" style="width:0%"></div></div>
+    </div>
+    <div class="card metric-card">
+      <div class="metric-label">Error Rate</div>
+      <div><span class="metric-value" id="val-err">—</span><span class="metric-unit">%</span></div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="bar-err" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Charts + Alerts -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        CPU &amp; RAM History
+        <span style="color:var(--muted);font-size:10px" id="last-update">—</span>
+      </div>
+      <canvas id="chart-cpu-ram"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Latency &amp; Error Rate</div>
+      <canvas id="chart-lat-err"></canvas>
+    </div>
+  </div>
+
+  <!-- Controls + Alerts -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        Simulate Scenario
+      </div>
+      <div class="sim-controls">
+        <button onclick="simulate('normal')">Normal</button>
+        <button onclick="simulate('cpu_spike')" class="danger">CPU Spike</button>
+        <button onclick="simulate('latency')" class="danger">Latency</button>
+        <button onclick="simulate('cascade')" class="danger">Cascade Failure</button>
+        <button onclick="toggleAuto()" id="auto-btn">▶ Auto</button>
+      </div>
+      <div style="margin-top:14px;color:var(--muted);font-size:11px" id="last-sim">No simulation yet</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        Active Alerts
+        <span id="alert-count" style="background:var(--border);padding:2px 7px;border-radius:10px;font-size:10px">0</span>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div class="empty-state">No alerts — system healthy</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = 'http://localhost:8000';
+const MAX_POINTS = 40;
+let autoInterval = null;
+let autoRunning = false;
+
+// ─── Chart setup ─────────────────────────────────────────────────────────────
+const chartDefaults = {
+  type: 'line',
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    animation: { duration: 300 },
+    plugins: { legend: { labels: { color: '#8b949e', font: { family: 'JetBrains Mono, monospace', size: 11 }, boxWidth: 12 } } },
+    scales: {
+      x: { display: false },
+      y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } }
+    }
+  }
+};
+
+function makeChart(id, datasets, yMax) {
+  const ctx = document.getElementById(id).getContext('2d');
+  const cfg = JSON.parse(JSON.stringify(chartDefaults));
+  if (yMax) cfg.options.scales.y.max = yMax;
+  cfg.data = { labels: [], datasets };
+  return new Chart(ctx, cfg);
+}
+
+const cpuRamChart = makeChart('chart-cpu-ram', [
+  { label: 'CPU %', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 },
+  { label: 'RAM %', data: [], borderColor: '#a371f7', backgroundColor: 'rgba(163,113,247,0.05)', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 },
+], 100);
+
+const latErrChart = makeChart('chart-lat-err', [
+  { label: 'Latency ms', data: [], borderColor: '#d29922', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+  { label: 'Error %', data: [], borderColor: '#f85149', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y1' },
+]);
+latErrChart.options.scales.y1 = { position: 'right', ticks: { color: '#8b949e', font: { size: 10 } }, grid: { drawOnChartArea: false } };
+
+function pushPoint(chart, values) {
+  const now = new Date().toLocaleTimeString('en', { hour12: false });
+  chart.data.labels.push(now);
+  values.forEach((v, i) => chart.data.datasets[i].data.push(v));
+  if (chart.data.labels.length > MAX_POINTS) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(d => d.data.shift());
+  }
+  chart.update();
+}
+
+// ─── Metric rendering ─────────────────────────────────────────────────────────
+function colorFor(val, warn, crit) {
+  if (val >= crit) return 'var(--crit)';
+  if (val >= warn) return 'var(--warn)';
+  return 'var(--ok)';
+}
+
+function barColor(val, warn, crit) {
+  return colorFor(val, warn, crit);
+}
+
+function setMetric(id, val, unit, warn, crit, barPct) {
+  const el = document.getElementById('val-' + id);
+  const bar = document.getElementById('bar-' + id);
+  const color = colorFor(val, warn, crit);
+  el.textContent = typeof val === 'number' ? val.toFixed(id === 'lat' ? 0 : 1) : '—';
+  el.style.color = color;
+  bar.style.width = Math.min(barPct, 100) + '%';
+  bar.style.background = color;
+}
+
+// ─── Status ────────────────────────────────────────────────────────────────────
+function updateStatus(status) {
+  const badge = document.getElementById('status-badge');
+  badge.className = 'status-badge status-' + status;
+  badge.textContent = status;
+}
+
+// ─── Alerts ────────────────────────────────────────────────────────────────────
+function renderAlerts(alerts) {
+  const list = document.getElementById('alerts-list');
+  const count = document.getElementById('alert-count');
+  count.textContent = alerts.length;
+  if (!alerts.length) {
+    list.innerHTML = '<div class="empty-state">No alerts — system healthy</div>';
+    return;
+  }
+  list.innerHTML = alerts.slice(-15).reverse().map(a => `
+    <div class="alert-item alert-${a.severity}">
+      <span class="alert-sev sev-${a.severity}">${a.severity}</span>
+      <span class="alert-msg">${a.message}</span>
+      <span class="alert-time">${new Date(a.timestamp).toLocaleTimeString('en',{hour12:false})}</span>
+    </div>
+  `).join('');
+}
+
+// ─── Main poll cycle ──────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const [statusRes, histRes] = await Promise.all([
+      fetch(API + '/metrics/status'),
+      fetch(API + '/metrics/history?limit=40'),
+    ]);
+
+    const status = await statusRes.json();
+    const history = await histRes.json();
+
+    // Update connection indicator
+    document.getElementById('conn-dot').className = 'conn-dot';
+    document.getElementById('conn-label').textContent = 'live';
+
+    // Status badge
+    updateStatus(status.status);
+
+    // Latest metric cards
+    if (status.latest_metrics) {
+      const m = status.latest_metrics;
+      setMetric('cpu', m.cpu_percent, '%', 80, 90, m.cpu_percent);
+      setMetric('ram', m.ram_percent, '%', 85, 95, m.ram_percent);
+      setMetric('lat', m.latency_ms, 'ms', 500, 1000, (m.latency_ms / 15));
+      setMetric('err', m.error_rate, '%', 5, 10, m.error_rate * 5);
+    }
+
+    // Charts from history
+    if (history.length) {
+      const last = history[history.length - 1];
+      pushPoint(cpuRamChart, [last.cpu_percent, last.ram_percent]);
+      pushPoint(latErrChart, [last.latency_ms, last.error_rate]);
+    }
+
+    // Last update
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en', { hour12: false });
+
+    // Alerts
+    renderAlerts(status.alerts || []);
+
+  } catch (e) {
+    document.getElementById('conn-dot').className = 'conn-dot error';
+    document.getElementById('conn-label').textContent = 'disconnected';
+  }
+}
+
+// ─── Simulation controls ──────────────────────────────────────────────────────
+async function simulate(scenario) {
+  const res = await fetch(`${API}/metrics/simulate?scenario=${scenario}`);
+  const data = await res.json();
+  document.getElementById('last-sim').textContent =
+    `[${scenario}] → ${data.alerts_triggered} alert(s) triggered`;
+  poll();
+}
+
+function toggleAuto() {
+  const btn = document.getElementById('auto-btn');
+  if (autoRunning) {
+    clearInterval(autoInterval);
+    autoRunning = false;
+    btn.textContent = '▶ Auto';
+    btn.classList.remove('active');
+  } else {
+    autoInterval = setInterval(() => simulate('random'), 2000);
+    autoRunning = true;
+    btn.textContent = '⏹ Stop';
+    btn.classList.add('active');
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+poll();
+setInterval(poll, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{
+  "name": "Predictive Agent — Alert Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-alert",
+        "responseMode": "responseNode"
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "webhookId": "agent-alert"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "scale_up", "output": 0 },
+            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "clear_cache", "output": 1 },
+            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "alert_team", "output": 2 },
+            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "restart_service", "output": 3 }
+          ]
+        }
+      },
+      "name": "Switch — Action Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://autoscaling.amazonaws.com/",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "Action", "value": "SetDesiredCapacity" },
+            { "name": "AutoScalingGroupName", "value": "my-web-asg" },
+            { "name": "DesiredCapacity", "value": "={{ $json.current_capacity + 2 }}" }
+          ]
+        }
+      },
+      "name": "AWS — Scale Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 160],
+      "notes": "Replace with real AWS SDK node or HTTP signed request"
+    },
+    {
+      "parameters": {
+        "url": "https://your-site.com/api/cache/flush",
+        "method": "POST",
+        "authentication": "headerAuth",
+        "headerParameters": {
+          "parameters": [{ "name": "X-Cache-Key", "value": "={{ $env.CACHE_SECRET }}" }]
+        }
+      },
+      "name": "HTTP — Flush Cache",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 280]
+    },
+    {
+      "parameters": {
+        "channel": "#alerts-oncall",
+        "text": ":rotating_light: *ALERT from Predictive Agent*\nAction: `{{ $json.action }}`\nReason: {{ $json.triggered_by }}\nTime: {{ $now.toISO() }}"
+      },
+      "name": "Slack — Alert Team",
+      "type": "n8n-nodes-base.slack",
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/webhooks/n8n/action-result",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "action", "value": "={{ $json.action }}" },
+            { "name": "status", "value": "executed" },
+            { "name": "node", "value": "={{ $node.name }}" }
+          ]
+        }
+      },
+      "name": "POST Result → FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300],
+      "notes": "Reports back to FastAPI webhook so it can mark alert as resolved"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Switch — Action Type", "type": "main", "index": 0 }]] },
+    "Switch — Action Type": {
+      "main": [
+        [{ "node": "AWS — Scale Up",     "type": "main", "index": 0 }],
+        [{ "node": "HTTP — Flush Cache", "type": "main", "index": 0 }],
+        [{ "node": "Slack — Alert Team", "type": "main", "index": 0 }],
+        [{ "node": "Slack — Alert Team", "type": "main", "index": 0 }]
+      ]
+    },
+    "AWS — Scale Up":     { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] },
+    "HTTP — Flush Cache": { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] },
+    "Slack — Alert Team": { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
