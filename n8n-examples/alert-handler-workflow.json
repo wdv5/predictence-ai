@@ -1,102 +1,168 @@
 {
-  "name": "Predictive Agent — Alert Handler",
+  "name": "Predictive Agent Alert Handler",
   "nodes": [
     {
+      "id": "node-webhook",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
       "parameters": {
         "httpMethod": "POST",
         "path": "agent-alert",
-        "responseMode": "responseNode"
+        "responseMode": "lastNode",
+        "options": {}
       },
-      "name": "Webhook Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "position": [240, 300],
-      "webhookId": "agent-alert"
+      "webhookId": "agent-alert-001"
     },
     {
-      "parameters": {
-        "rules": {
-          "rules": [
-            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "scale_up", "output": 0 },
-            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "clear_cache", "output": 1 },
-            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "alert_team", "output": 2 },
-            { "operation": "equal", "value1": "={{ $json.action }}", "value2": "restart_service", "output": 3 }
-          ]
-        }
-      },
-      "name": "Switch — Action Type",
+      "id": "node-switch",
+      "name": "Switch Action Type",
       "type": "n8n-nodes-base.switch",
-      "position": [460, 300]
+      "typeVersion": 3,
+      "position": [460, 300],
+      "parameters": {
+        "mode": "rules",
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-scale",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "scale_up",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "cond-cache",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "clear_cache",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "cond-alert",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "alert_team",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "cond-restart",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "restart_service",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
     },
     {
+      "id": "node-scale",
+      "name": "HTTP Scale Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 100],
       "parameters": {
+        "method": "POST",
         "url": "https://autoscaling.amazonaws.com/",
-        "method": "POST",
-        "bodyParameters": {
-          "parameters": [
-            { "name": "Action", "value": "SetDesiredCapacity" },
-            { "name": "AutoScalingGroupName", "value": "my-web-asg" },
-            { "name": "DesiredCapacity", "value": "={{ $json.current_capacity + 2 }}" }
-          ]
-        }
-      },
-      "name": "AWS — Scale Up",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [680, 160],
-      "notes": "Replace with real AWS SDK node or HTTP signed request"
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"Action\": \"SetDesiredCapacity\", \"AutoScalingGroupName\": \"my-web-asg\", \"DesiredCapacity\": 4}",
+        "options": {}
+      }
     },
     {
+      "id": "node-cache",
+      "name": "HTTP Flush Cache",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 240],
       "parameters": {
+        "method": "POST",
         "url": "https://your-site.com/api/cache/flush",
-        "method": "POST",
-        "authentication": "headerAuth",
+        "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "X-Cache-Key", "value": "={{ $env.CACHE_SECRET }}" }]
-        }
-      },
-      "name": "HTTP — Flush Cache",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [680, 280]
-    },
-    {
-      "parameters": {
-        "channel": "#alerts-oncall",
-        "text": ":rotating_light: *ALERT from Predictive Agent*\nAction: `{{ $json.action }}`\nReason: {{ $json.triggered_by }}\nTime: {{ $now.toISO() }}"
-      },
-      "name": "Slack — Alert Team",
-      "type": "n8n-nodes-base.slack",
-      "position": [680, 400]
-    },
-    {
-      "parameters": {
-        "url": "http://localhost:8000/webhooks/n8n/action-result",
-        "method": "POST",
-        "bodyParameters": {
           "parameters": [
-            { "name": "action", "value": "={{ $json.action }}" },
-            { "name": "status", "value": "executed" },
-            { "name": "node", "value": "={{ $node.name }}" }
+            { "name": "X-Cache-Key", "value": "your-secret-here" }
           ]
-        }
-      },
-      "name": "POST Result → FastAPI",
+        },
+        "sendBody": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "node-slack",
+      "name": "HTTP Slack Notify",
       "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"text\": \":rotating_light: ALERT\\nAction: {{ $('Webhook Trigger').item.json.action }}\\nReason: {{ $('Webhook Trigger').item.json.triggered_by }}\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-restart",
+      "name": "HTTP Restart Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 520],
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-site.com/api/service/restart",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"service\": \"web\", \"strategy\": \"rolling\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-result",
+      "name": "POST Result to FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [900, 300],
-      "notes": "Reports back to FastAPI webhook so it can mark alert as resolved"
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/webhooks/n8n/action-result",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\": \"{{ $('Webhook Trigger').item.json.action }}\", \"status\": \"executed\", \"timestamp\": \"{{ $now.toISO() }}\"}",
+        "options": {}
+      }
     }
   ],
   "connections": {
-    "Webhook Trigger": { "main": [[{ "node": "Switch — Action Type", "type": "main", "index": 0 }]] },
-    "Switch — Action Type": {
+    "Webhook Trigger": {
+      "main": [[{ "node": "Switch Action Type", "type": "main", "index": 0 }]]
+    },
+    "Switch Action Type": {
       "main": [
-        [{ "node": "AWS — Scale Up",     "type": "main", "index": 0 }],
-        [{ "node": "HTTP — Flush Cache", "type": "main", "index": 0 }],
-        [{ "node": "Slack — Alert Team", "type": "main", "index": 0 }],
-        [{ "node": "Slack — Alert Team", "type": "main", "index": 0 }]
+        [{ "node": "HTTP Scale Up",        "type": "main", "index": 0 }],
+        [{ "node": "HTTP Flush Cache",     "type": "main", "index": 0 }],
+        [{ "node": "HTTP Slack Notify",    "type": "main", "index": 0 }],
+        [{ "node": "HTTP Restart Service", "type": "main", "index": 0 }]
       ]
     },
-    "AWS — Scale Up":     { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] },
-    "HTTP — Flush Cache": { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] },
-    "Slack — Alert Team": { "main": [[{ "node": "POST Result → FastAPI", "type": "main", "index": 0 }]] }
+    "HTTP Scale Up":        { "main": [[{ "node": "POST Result to FastAPI", "type": "main", "index": 0 }]] },
+    "HTTP Flush Cache":     { "main": [[{ "node": "POST Result to FastAPI", "type": "main", "index": 0 }]] },
+    "HTTP Slack Notify":    { "main": [[{ "node": "POST Result to FastAPI", "type": "main", "index": 0 }]] },
+    "HTTP Restart Service": { "main": [[{ "node": "POST Result to FastAPI", "type": "main", "index": 0 }]] }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
 }
