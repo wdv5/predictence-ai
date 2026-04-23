@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ..core.action_layer import execute, ACTION_DESCRIPTIONS
+from core.action_layer import execute, ACTION_DESCRIPTIONS
 from typing import Literal
 
 router = APIRouter()
