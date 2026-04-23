@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from ..models.schemas import MetricPayload, SystemStatus
 from ..core import rules_engine, state_store, prometheus_sim, action_layer
+from ..core import predictive_monitor
 from datetime import datetime
 
 router = APIRouter()
@@ -9,6 +10,7 @@ router = APIRouter()
 @router.post("/ingest", summary="Receive real or Prometheus metrics")
 def ingest_metrics(payload: MetricPayload):
     state_store.push_metrics(payload)
+    predictive_monitor.persist_metric_row(payload)
     alerts = rules_engine.evaluate(payload)
     state_store.push_alerts(alerts)
 
@@ -47,3 +49,29 @@ def get_status():
         latest_metrics=state_store.get_latest_metrics(),
         timestamp=datetime.utcnow(),
     )
+
+
+@router.get("/predict/cpu", summary="Predict CPU usage for the next 24 hours")
+def predict_cpu(
+    threshold: float = Query(90.0, ge=0, le=100),
+    trigger_webhook: bool = Query(True),
+):
+    forecast = predictive_monitor.predict_cpu_next_24h(threshold=threshold)
+    webhook = None
+    if trigger_webhook and forecast.get("threshold_exceeded"):
+        webhook = predictive_monitor.trigger_n8n_threshold_webhook(forecast)
+    return {"forecast": forecast, "webhook": webhook}
+
+
+@router.get("/debug/prophet-dataset", summary="Preview Prophet-compatible dataset")
+def debug_prophet_dataset(limit: int = Query(50, ge=1, le=500)):
+    df = predictive_monitor.load_prophet_dataset(metric="cpu_percent")
+    rows = [
+        {"ds": row.ds.isoformat(), "y": float(row.y)}
+        for row in df.tail(limit).itertuples(index=False)
+    ]
+    return {
+        "csv_path": str(predictive_monitor.METRICS_CSV_PATH),
+        "rows_total": len(df),
+        "rows_preview": rows,
+    }

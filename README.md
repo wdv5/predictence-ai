@@ -1,6 +1,7 @@
 # Predictive Maintenance Agent — MVP
 
 Rule-based agent. Detects CPU/latency/error spikes. Delegates actions to n8n.
+Includes Prophet-based CPU forecasting with predictive webhook triggers.
 
 ## Structure
 
@@ -14,6 +15,7 @@ backend/
     prometheus_sim.py      # Metric generator (replace with real Prometheus)
     state_store.py         # In-memory ring buffer (replace with Redis/TimescaleDB)
     action_layer.py        # Action execution + n8n delegation
+    predictive_monitor.py  # CSV persistence + Prophet forecasting + threshold webhook
   api/
     metrics.py             # POST /metrics/ingest, GET /metrics/status, simulate
     alerts.py              # GET /alerts, POST /alerts/:id/resolve
@@ -60,6 +62,12 @@ curl http://localhost:8000/metrics/status | python -m json.tool
 
 # Get alerts
 curl http://localhost:8000/alerts/
+
+# Forecast CPU for next 24h and trigger webhook on predicted threshold breach
+curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true" | python -m json.tool
+
+# Debug Prophet dataset (ds,y)
+curl "http://localhost:8000/metrics/debug/prophet-dataset?limit=20" | python -m json.tool
 ```
 
 ## n8n integration
