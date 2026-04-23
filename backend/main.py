@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.metrics import router as metrics_router
-from api.alerts import router as alerts_router
-from api.actions import router as actions_router
-from api.webhooks import router as webhooks_router
+from .api.metrics import router as metrics_router
+from .api.alerts import router as alerts_router
+from .api.actions import router as actions_router
+from .api.webhooks import router as webhooks_router
 
 app = FastAPI(title="Predictive Maintenance Agent", version="1.0.0")
 
