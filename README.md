@@ -35,6 +35,9 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
+> Nota: `plotly` está incluido en dependencias para evitar el warning de Prophet:
+> `Importing plotly failed. Interactive plots will not work.`
+
 API docs: http://localhost:8000/docs
 
 ## Run dashboard
