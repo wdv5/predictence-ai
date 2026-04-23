@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
-from models.schemas import MetricPayload, SystemStatus
-from core import rules_engine, state_store, prometheus_sim, action_layer
+from ..models.schemas import MetricPayload, SystemStatus
+from ..core import rules_engine, state_store, prometheus_sim, action_layer
 from datetime import datetime
 
 router = APIRouter()
@@ -8,12 +8,6 @@ router = APIRouter()
 
 @router.post("/ingest", summary="Receive real or Prometheus metrics")
 def ingest_metrics(payload: MetricPayload):
-    """
-    Main ingestion endpoint.
-    1. Store metric
-    2. Evaluate rules
-    3. Log + execute recommended actions
-    """
     state_store.push_metrics(payload)
     alerts = rules_engine.evaluate(payload)
     state_store.push_alerts(alerts)
@@ -34,7 +28,6 @@ def ingest_metrics(payload: MetricPayload):
 
 @router.get("/simulate", summary="Generate and ingest a simulated metric sample")
 def simulate_metric(scenario: str = Query("random", enum=["normal", "cpu_spike", "latency", "cascade", "random"])):
-    """Simulate a Prometheus scrape for testing."""
     payload = prometheus_sim.generate(scenario)
     return ingest_metrics(payload)
 

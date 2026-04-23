@@ -1,10 +1,6 @@
-"""
-State Store — in-memory ring buffer for metrics + alert history.
-Replace with Redis or TimescaleDB when scaling.
-"""
 from collections import deque
 from typing import Optional
-from models.schemas import Alert, MetricPayload
+from ..models.schemas import Alert, MetricPayload
 
 MAX_METRICS = 200
 MAX_ALERTS = 500
