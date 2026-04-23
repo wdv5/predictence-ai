@@ -55,12 +55,28 @@ def get_status():
 def predict_cpu(
     threshold: float = Query(90.0, ge=0, le=100),
     trigger_webhook: bool = Query(True),
+<<<<<<< codex/implement-predictive-monitoring-system-with-fastapi-oe340g
+    force_webhook: bool = Query(False),
+):
+    forecast = predictive_monitor.predict_cpu_next_24h(threshold=threshold)
+    webhook = None
+    should_trigger = bool(forecast.get("threshold_exceeded")) or force_webhook
+    if trigger_webhook and should_trigger:
+        webhook_payload = {
+            **forecast,
+            "trigger_reason": "forced_test" if force_webhook and not forecast.get("threshold_exceeded") else "threshold_breach",
+            "forced": force_webhook,
+        }
+        webhook = predictive_monitor.trigger_n8n_threshold_webhook(webhook_payload)
+    return {"forecast": forecast, "webhook": webhook, "should_trigger_webhook": should_trigger}
+=======
 ):
     forecast = predictive_monitor.predict_cpu_next_24h(threshold=threshold)
     webhook = None
     if trigger_webhook and forecast.get("threshold_exceeded"):
         webhook = predictive_monitor.trigger_n8n_threshold_webhook(forecast)
     return {"forecast": forecast, "webhook": webhook}
+>>>>>>> main
 
 
 @router.get("/debug/prophet-dataset", summary="Preview Prophet-compatible dataset")
