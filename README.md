@@ -70,6 +70,24 @@ curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=tru
 curl "http://localhost:8000/metrics/debug/prophet-dataset?limit=20" | python -m json.tool
 ```
 
+## Bootstrap rápido de datos para Prophet
+
+Si aún no tienes histórico suficiente, puedes generar datos sintéticos:
+
+```bash
+python backend/scripts/bootstrap_prophet_data.py \
+  --out backend/data/metrics.csv \
+  --points 240 \
+  --interval-minutes 60 \
+  --spike-every 18
+```
+
+Luego ejecuta:
+
+```bash
+curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=false" | python -m json.tool
+```
+
 ## n8n integration
 
 1. Run n8n: `docker run -p 5678:5678 n8nio/n8n`
