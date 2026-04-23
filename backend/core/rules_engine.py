@@ -8,7 +8,7 @@ Designed to be replaced by ML in Phase 2:
 import uuid
 from datetime import datetime
 from typing import NamedTuple
-from ..models.schemas import Alert, MetricPayload
+from models.schemas import Alert, MetricPayload
 
 
 class Rule(NamedTuple):

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from ..core import state_store
+from core import state_store
 
 router = APIRouter()
 

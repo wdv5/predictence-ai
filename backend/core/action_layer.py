@@ -6,7 +6,7 @@ Replace n8n_notify() body with real HTTP call to n8n webhook.
 import httpx
 import logging
 from datetime import datetime
-from ..models.schemas import ActionResult
+from models.schemas import ActionResult
 
 logger = logging.getLogger("actions")
 

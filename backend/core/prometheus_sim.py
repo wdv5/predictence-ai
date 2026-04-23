@@ -7,7 +7,7 @@ Replace `generate()` with actual Prometheus scrape in production:
 import random
 import math
 from datetime import datetime
-from ..models.schemas import MetricPayload
+from models.schemas import MetricPayload
 
 
 _tick = 0  # global step counter for waveform simulation
