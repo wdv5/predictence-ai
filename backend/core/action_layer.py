@@ -1,12 +1,13 @@
 import httpx
 import logging
+import os
 from datetime import datetime
 from ..models.schemas import ActionResult
 
 logger = logging.getLogger("actions")
 
-N8N_WEBHOOK_URL = "http://localhost:5678/webhook/agent-alert"
-N8N_ENABLED = False
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/agent-alert")
+N8N_ENABLED = os.getenv("N8N_ENABLED", "false").lower() == "true"
 
 ACTION_DESCRIPTIONS = {
     "scale_up":        "Trigger horizontal scale-up via orchestrator",
