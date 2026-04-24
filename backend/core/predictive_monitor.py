@@ -70,6 +70,7 @@ def load_prophet_dataset(metric: str = "cpu_percent") -> pd.DataFrame:
             "[prophet_dataset] dropped %s rows due to invalid/missing timestamp or metric values",
             dropped,
         )
+    dataset = dataset.dropna()
     dataset = dataset.rename(columns={"timestamp": "ds", metric: "y"})
     dataset = dataset.sort_values("ds").reset_index(drop=True)
     return dataset
