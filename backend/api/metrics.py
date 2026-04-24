@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from ..models.schemas import MetricPayload, SystemStatus
 from ..core import rules_engine, state_store, prometheus_sim, action_layer
+from ..core import predictive_monitor
 from datetime import datetime
 
 router = APIRouter()
@@ -9,6 +10,7 @@ router = APIRouter()
 @router.post("/ingest", summary="Receive real or Prometheus metrics")
 def ingest_metrics(payload: MetricPayload):
     state_store.push_metrics(payload)
+    predictive_monitor.persist_metric_row(payload)
     alerts = rules_engine.evaluate(payload)
     state_store.push_alerts(alerts)
 
@@ -47,3 +49,65 @@ def get_status():
         latest_metrics=state_store.get_latest_metrics(),
         timestamp=datetime.utcnow(),
     )
+
+
+@router.get("/predict/cpu", summary="Predict CPU usage for the next 24 hours")
+def predict_cpu(
+    threshold: float = Query(90.0, ge=0, le=100),
+    trigger_webhook: bool = Query(True),
+    force_webhook: bool = Query(False),
+):
+    forecast = predictive_monitor.predict_cpu_next_24h(threshold=threshold)
+    webhook = None
+    should_trigger = bool(forecast.get("threshold_exceeded")) or force_webhook
+    webhook_attempted = False
+    if trigger_webhook and should_trigger:
+        webhook_attempted = True
+        webhook_payload = {
+            **forecast,
+            "trigger_reason": "forced_test" if force_webhook and not forecast.get("threshold_exceeded") else "threshold_breach",
+            "forced": force_webhook,
+        }
+        webhook = predictive_monitor.trigger_n8n_threshold_webhook(webhook_payload)
+    return {
+        "forecast": forecast,
+        "webhook": webhook,
+        "should_trigger_webhook": should_trigger,
+        "webhook_attempted": webhook_attempted,
+        "trigger_webhook_received": trigger_webhook,
+        "webhook_url": predictive_monitor.N8N_PREDICTIVE_WEBHOOK_URL,
+    }
+
+
+@router.post("/predict/cpu/test-webhook", summary="Force-send a test predictive webhook to n8n")
+def test_predictive_webhook():
+    test_payload = {
+        "trained": True,
+        "history_points": 0,
+        "threshold": 90.0,
+        "predictions": [],
+        "threshold_exceeded": False,
+        "first_breach": None,
+        "trigger_reason": "manual_test_endpoint",
+        "forced": True,
+    }
+    webhook = predictive_monitor.trigger_n8n_threshold_webhook(test_payload)
+    return {
+        "webhook": webhook,
+        "webhook_attempted": True,
+        "webhook_url": predictive_monitor.N8N_PREDICTIVE_WEBHOOK_URL,
+    }
+
+
+@router.get("/debug/prophet-dataset", summary="Preview Prophet-compatible dataset")
+def debug_prophet_dataset(limit: int = Query(50, ge=1, le=500)):
+    df = predictive_monitor.load_prophet_dataset(metric="cpu_percent")
+    rows = [
+        {"ds": row.ds.isoformat(), "y": float(row.y)}
+        for row in df.tail(limit).itertuples(index=False)
+    ]
+    return {
+        "csv_path": str(predictive_monitor.METRICS_CSV_PATH),
+        "rows_total": len(df),
+        "rows_preview": rows,
+    }

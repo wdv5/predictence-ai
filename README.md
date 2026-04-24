@@ -1,6 +1,7 @@
 # Predictive Maintenance Agent — MVP
 
 Rule-based agent. Detects CPU/latency/error spikes. Delegates actions to n8n.
+Includes Prophet-based CPU forecasting with predictive webhook triggers.
 
 ## Structure
 
@@ -14,6 +15,7 @@ backend/
     prometheus_sim.py      # Metric generator (replace with real Prometheus)
     state_store.py         # In-memory ring buffer (replace with Redis/TimescaleDB)
     action_layer.py        # Action execution + n8n delegation
+    predictive_monitor.py  # CSV persistence + Prophet forecasting + threshold webhook
   api/
     metrics.py             # POST /metrics/ingest, GET /metrics/status, simulate
     alerts.py              # GET /alerts, POST /alerts/:id/resolve
@@ -32,6 +34,9 @@ cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
+
+> Nota: `plotly` está incluido en dependencias para evitar el warning de Prophet:
+> `Importing plotly failed. Interactive plots will not work.`
 
 API docs: http://localhost:8000/docs
 
@@ -60,6 +65,51 @@ curl http://localhost:8000/metrics/status | python -m json.tool
 
 # Get alerts
 curl http://localhost:8000/alerts/
+
+# Forecast CPU for next 24h and trigger webhook on predicted threshold breach
+curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true" | python -m json.tool
+
+# Force webhook trigger for integration testing (even without breach)
+curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true&force_webhook=true" | python -m json.tool
+
+# Force-send a test webhook without depending on forecast output
+curl -X POST "http://localhost:8000/metrics/predict/cpu/test-webhook" | python -m json.tool
+
+# Debug Prophet dataset (ds,y)
+curl "http://localhost:8000/metrics/debug/prophet-dataset?limit=20" | python -m json.tool
+```
+
+### PowerShell tip (Windows)
+
+En PowerShell, `curl` puede mapear a `Invoke-WebRequest`. Para inspeccionar JSON completo usa:
+
+```powershell
+curl.exe "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true&force_webhook=true"
+curl.exe -X POST "http://localhost:8000/metrics/predict/cpu/test-webhook"
+```
+
+La respuesta ahora incluye:
+- `webhook_attempted` (si se intentó enviar),
+- `trigger_webhook_received` (valor real parseado),
+- `webhook_url` (URL destino efectiva),
+- `webhook.triggered` / `webhook.error` para depuración rápida.
+
+## Bootstrap rápido de datos para Prophet
+
+Si aún no tienes histórico suficiente, puedes generar datos sintéticos:
+
+```bash
+python backend/scripts/bootstrap_prophet_data.py \
+  --out backend/data/metrics.csv \
+  --points 240 \
+  --interval-minutes 60 \
+  --spike-every 18
+```
+
+Luego ejecuta:
+
+```bash
+curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=false" | python -m json.tool
 ```
 
 ## n8n integration
