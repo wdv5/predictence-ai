@@ -25,6 +25,7 @@ dashboard/
   index.html               # Self-contained HTML dashboard (no build step)
 n8n-examples/
   alert-handler-workflow.json   # Import into n8n directly
+  predictive-forecast-workflow.json  # Predictive CPU webhook workflow
 ```
 
 ## Run backend
@@ -115,9 +116,13 @@ curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=fal
 ## n8n integration
 
 1. Run n8n: `docker run -p 5678:5678 n8nio/n8n`
-2. Import `n8n-examples/alert-handler-workflow.json`
-3. Set `N8N_ENABLED = True` in `backend/core/action_layer.py`
-4. Activate workflow in n8n
+2. Import `n8n-examples/alert-handler-workflow.json` (rule-based actions path: `agent-alert`)
+3. Import `n8n-examples/predictive-forecast-workflow.json` (predictive path: `cpu-threshold-forecast`)
+4. Set env vars before starting FastAPI:
+   - `N8N_ENABLED=true`
+   - `N8N_WEBHOOK_URL=http://localhost:5678/webhook/agent-alert`
+   - `N8N_PREDICTIVE_WEBHOOK_URL=http://localhost:5678/webhook/cpu-threshold-forecast`
+5. Activate workflows in n8n
 
 ## Rules (core/rules_engine.py)
 

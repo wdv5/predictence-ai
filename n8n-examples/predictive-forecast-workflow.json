@@ -1,0 +1,65 @@
+{
+  "name": "Predictive CPU Forecast Handler",
+  "nodes": [
+    {
+      "id": "node-webhook-predictive",
+      "name": "Predictive Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 260],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cpu-threshold-forecast",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "cpu-threshold-forecast-001"
+    },
+    {
+      "id": "node-slack-predictive",
+      "name": "Notify Predictive Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"text\":\"📈 Predictive CPU alert\\nEvent: {{ $json.event }}\\nReason: {{ $json.forecast.trigger_reason || 'threshold_breach' }}\\nThreshold: {{ $json.forecast.threshold }}\\nFirst breach: {{ $json.forecast.first_breach ? $json.forecast.first_breach.timestamp : 'n/a' }}\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-ack-fastapi",
+      "name": "POST Forecast Ack to FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [780, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/webhooks/n8n/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"event\":\"predictive_forecast_processed\",\"source\":\"n8n\",\"received_at\":\"{{ $now.toISO() }}\",\"original\":{{ JSON.stringify($json) }}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Predictive Webhook Trigger": {
+      "main": [[{ "node": "Notify Predictive Alert", "type": "main", "index": 0 }]]
+    },
+    "Notify Predictive Alert": {
+      "main": [[{ "node": "POST Forecast Ack to FastAPI", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
