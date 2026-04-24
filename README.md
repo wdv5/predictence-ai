@@ -69,12 +69,9 @@ curl http://localhost:8000/alerts/
 # Forecast CPU for next 24h and trigger webhook on predicted threshold breach
 curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true" | python -m json.tool
 
-<<<<<<< codex/implement-predictive-monitoring-system-with-fastapi-oe340g
 # Force webhook trigger for integration testing (even without breach)
 curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true&force_webhook=true" | python -m json.tool
 
-=======
->>>>>>> main
 # Debug Prophet dataset (ds,y)
 curl "http://localhost:8000/metrics/debug/prophet-dataset?limit=20" | python -m json.tool
 ```
