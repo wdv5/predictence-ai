@@ -60,6 +60,9 @@ def predict_cpu(
     forecast = predictive_monitor.predict_cpu_next_24h(threshold=threshold)
     webhook = None
     should_trigger = bool(forecast.get("threshold_exceeded")) or force_webhook
+    webhook_attempted = False
+    if trigger_webhook and should_trigger:
+        webhook_attempted = True
     if trigger_webhook and should_trigger:
         webhook_payload = {
             **forecast,
@@ -67,6 +70,34 @@ def predict_cpu(
             "forced": force_webhook,
         }
         webhook = predictive_monitor.trigger_n8n_threshold_webhook(webhook_payload)
+    return {
+        "forecast": forecast,
+        "webhook": webhook,
+        "should_trigger_webhook": should_trigger,
+        "webhook_attempted": webhook_attempted,
+        "trigger_webhook_received": trigger_webhook,
+        "webhook_url": predictive_monitor.N8N_PREDICTIVE_WEBHOOK_URL,
+    }
+
+
+@router.post("/predict/cpu/test-webhook", summary="Force-send a test predictive webhook to n8n")
+def test_predictive_webhook():
+    test_payload = {
+        "trained": True,
+        "history_points": 0,
+        "threshold": 90.0,
+        "predictions": [],
+        "threshold_exceeded": False,
+        "first_breach": None,
+        "trigger_reason": "manual_test_endpoint",
+        "forced": True,
+    }
+    webhook = predictive_monitor.trigger_n8n_threshold_webhook(test_payload)
+    return {
+        "webhook": webhook,
+        "webhook_attempted": True,
+        "webhook_url": predictive_monitor.N8N_PREDICTIVE_WEBHOOK_URL,
+    }
     return {"forecast": forecast, "webhook": webhook, "should_trigger_webhook": should_trigger}
 
 

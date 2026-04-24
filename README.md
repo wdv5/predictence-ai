@@ -72,9 +72,27 @@ curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=tru
 # Force webhook trigger for integration testing (even without breach)
 curl "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true&force_webhook=true" | python -m json.tool
 
+# Force-send a test webhook without depending on forecast output
+curl -X POST "http://localhost:8000/metrics/predict/cpu/test-webhook" | python -m json.tool
+
 # Debug Prophet dataset (ds,y)
 curl "http://localhost:8000/metrics/debug/prophet-dataset?limit=20" | python -m json.tool
 ```
+
+### PowerShell tip (Windows)
+
+En PowerShell, `curl` puede mapear a `Invoke-WebRequest`. Para inspeccionar JSON completo usa:
+
+```powershell
+curl.exe "http://localhost:8000/metrics/predict/cpu?threshold=90&trigger_webhook=true&force_webhook=true"
+curl.exe -X POST "http://localhost:8000/metrics/predict/cpu/test-webhook"
+```
+
+La respuesta ahora incluye:
+- `webhook_attempted` (si se intentó enviar),
+- `trigger_webhook_received` (valor real parseado),
+- `webhook_url` (URL destino efectiva),
+- `webhook.triggered` / `webhook.error` para depuración rápida.
 
 ## Bootstrap rápido de datos para Prophet
 
