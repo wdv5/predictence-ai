@@ -63,6 +63,7 @@ def predict_cpu(
     webhook_attempted = False
     if trigger_webhook and should_trigger:
         webhook_attempted = True
+    if trigger_webhook and should_trigger:
         webhook_payload = {
             **forecast,
             "trigger_reason": "forced_test" if force_webhook and not forecast.get("threshold_exceeded") else "threshold_breach",
@@ -97,6 +98,7 @@ def test_predictive_webhook():
         "webhook_attempted": True,
         "webhook_url": predictive_monitor.N8N_PREDICTIVE_WEBHOOK_URL,
     }
+    return {"forecast": forecast, "webhook": webhook, "should_trigger_webhook": should_trigger}
 
 
 @router.get("/debug/prophet-dataset", summary="Preview Prophet-compatible dataset")
